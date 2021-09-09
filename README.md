@@ -13,6 +13,7 @@ Available options:
   -D,--device N  select the device, default 'hw:0'
   -n,--name      control name to tap on
 ```
+If `control name` is not specified, `kcontrol_evernts` will listen events on all controls on the selected ALSA card.
 
 Compilation
 -------------
