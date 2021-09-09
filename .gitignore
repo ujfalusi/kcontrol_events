@@ -1,3 +1,6 @@
 kcontrol_events
 kcontrol_events.o
 build
+
+# KDevelop
+*.kdev4
