@@ -124,6 +124,15 @@ static int ctl_callback(snd_hctl_t *ctl, unsigned int mask,
 	return 0;
 }
 
+#define SND_CARD_PREFIX		"hw"
+
+#if defined(SND_LIB_VER)
+ #if SND_LIB_VER(1, 2, 5) <= SND_LIB_VERSION
+	#undef SND_CARD_PREFIX
+	#define SND_CARD_PREFIX	"sysdefault"
+ #endif
+#endif
+
 int main(int argc, char *argv[])
 {
 	static const struct option long_option[] = {
@@ -149,11 +158,7 @@ int main(int argc, char *argv[])
 		case 'c':
 			i = snd_card_get_index(optarg);
 			if (i >= 0 && i < 32) {
-#if defined(SND_LIB_VER) && SND_LIB_VER(1, 2, 5) <= SND_LIB_VERSION
-				sprintf(card, "sysdefault:%i", i);
-#else
-				sprintf(card, "hw:%i", i);
-#endif
+				sprintf(card, "%s:%i", SND_CARD_PREFIX, i);
 			} else {
 				printf("Invalid card number '%s'.\n", optarg);
 				err++;
