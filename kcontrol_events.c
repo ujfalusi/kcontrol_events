@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#define TLV_MAX		2048
+
 static char card[64] = "hw:0";
 static char *control_name;
 int num_events;
@@ -33,7 +35,9 @@ static void value_change_event(snd_hctl_elem_t *helem)
 	snd_ctl_elem_type_t type;
 	snd_aes_iec958_t iec958;
 	unsigned int idx, count;
+	unsigned int tlv_data[TLV_MAX];
 	snd_ctl_elem_id_t *id;
+
 	int err;
 
 	snd_ctl_elem_id_alloca(&id);
@@ -44,26 +48,40 @@ static void value_change_event(snd_hctl_elem_t *helem)
 
 	err = snd_hctl_elem_info(helem, info);
 	if (err < 0) {
-		printf("Control %s snd_hctl_elem_info error: %s\n", card, snd_strerror(err));
+		printf("%s:%s: snd_hctl_elem_info error: %s\n", card,
+		       snd_hctl_elem_get_name(helem), snd_strerror(err));
 		return;
 	}
 
 	count = snd_ctl_elem_info_get_count(info);
 	type = snd_ctl_elem_info_get_type(info);
-	if (!snd_ctl_elem_info_is_readable(info))
-		return;
+	if (snd_ctl_elem_info_is_readable(info)) {
+		err = snd_hctl_elem_read(helem, control);
+		if (err < 0) {
+			printf("%s:%s: read error: %s\n", card,
+			       snd_hctl_elem_get_name(helem), snd_strerror(err));
+			return;
+		}
+	} else if (snd_ctl_elem_info_is_tlv_readable(info)) {
+		count = count > TLV_MAX ? TLV_MAX : count;
+		err = snd_hctl_elem_tlv_read(helem, tlv_data, count);
+		if (err < 0) {
+			printf("%s:%s: tlv_read error: %s\n", card,
+			       snd_hctl_elem_get_name(helem), snd_strerror(err));
+			return;
+		}
 
-	err = snd_hctl_elem_read(helem, control);
-	if (err < 0) {
-		printf("Control %s element read error: %s\n", card, snd_strerror(err));
+	} else {
+		printf("%s:%s: not readable\n", card, snd_hctl_elem_get_name(helem));
 		return;
 	}
 
-	printf("'%s' (%s) changed: ", snd_ctl_elem_id_get_name(id),
-	       snd_ctl_elem_type_name(type));
+	printf("'%s' (%s) changed: %s", snd_ctl_elem_id_get_name(id),
+	       snd_ctl_elem_type_name(type),
+	       type == SND_CTL_ELEM_TYPE_BYTES ? "\n" : "");
 
 	for (idx = 0; idx < count; idx++) {
-		if (idx > 0)
+		if (idx > 0 && type != SND_CTL_ELEM_TYPE_BYTES)
 			printf(",");
 		switch (type) {
 		case SND_CTL_ELEM_TYPE_BOOLEAN:
@@ -79,7 +97,9 @@ static void value_change_event(snd_hctl_elem_t *helem)
 			printf("%u", snd_ctl_elem_value_get_enumerated(control, idx));
 			break;
 		case SND_CTL_ELEM_TYPE_BYTES:
-			printf("0x%02x", snd_ctl_elem_value_get_byte(control, idx));
+			printf("0x%08x ", tlv_data[idx]);
+			if (!((idx + 1) % 8))
+				printf("\n");
 			break;
 		case SND_CTL_ELEM_TYPE_IEC958:
 			snd_ctl_elem_value_get_iec958(control, &iec958);
@@ -202,8 +222,8 @@ int main(int argc, char *argv[])
 		goto out;
 	}
 
-	printf("Listening on %s and '%s'...\n", card,
-	       control_name ? control_name : "all controls");
+	printf("Listening on %s and '%s' (num_events: %d)...\n", card,
+	       control_name ? control_name : "all controls", num_events);
 
 	/* TODO: graceful exit */
 	while (1) {
