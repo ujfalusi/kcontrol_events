@@ -71,6 +71,8 @@ static void value_change_event(snd_hctl_elem_t *helem)
 			return;
 		}
 
+		count = tlv_data[1] / sizeof(unsigned int) +
+			(tlv_data[1] % sizeof(unsigned int) ? 1 : 0);
 	} else {
 		printf("%s:%s: not readable\n", card, snd_hctl_elem_get_name(helem));
 		return;
@@ -97,7 +99,7 @@ static void value_change_event(snd_hctl_elem_t *helem)
 			printf("%u", snd_ctl_elem_value_get_enumerated(control, idx));
 			break;
 		case SND_CTL_ELEM_TYPE_BYTES:
-			printf("0x%08x ", tlv_data[idx]);
+			printf("0x%08x ", tlv_data[idx + 2]);
 			if (!((idx + 1) % 8))
 				printf("\n");
 			break;
